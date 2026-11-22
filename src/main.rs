@@ -115,6 +115,8 @@ async fn download_service_logos() -> Result<(), Box<dyn std::error::Error>> {
         "disney-plus-light.png",
         "amazon-prime-video.png",
         "hulu.png",
+        "paramount-plus.png",
+        "peacock.png",
         "max-light.png",
         "apple-tv-light.png",
     ];

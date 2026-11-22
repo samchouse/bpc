@@ -8,7 +8,7 @@ use axum::{
     response::Response,
 };
 use image::{DynamicImage, ImageFormat, Rgba};
-use imageproc::drawing::{draw_text_mut, text_size};
+use imageproc::drawing::{draw_filled_circle_mut, draw_text_mut, text_size};
 use std::{fs, io::Cursor, path::PathBuf};
 
 pub(super) async fn get_cover(
@@ -77,7 +77,21 @@ fn render_cover(service: &str, media_type: &str, font_data: &[u8]) -> Result<Vec
             ((0.0, 350.0), (600.0, 650.0)),
             "hulu.png",
         ),
-        "max" => (
+        "paramount" | "paramount-plus" | "paramountplus" => (
+            [0, 100, 190],
+            [0, 45, 120],
+            425.0,
+            ((0.0, 700.0), (600.0, 320.0)),
+            "paramount-plus.png",
+        ),
+        "peacock" => (
+            [0, 80, 150],
+            [80, 20, 120],
+            175.0,
+            ((0.0, 300.0), (600.0, 700.0)),
+            "peacock.png",
+        ),
+        "max" | "hbo-max" | "hbomax" => (
             [140, 76, 255],
             [49, 20, 151],
             425.0,
@@ -152,8 +166,13 @@ fn render_cover(service: &str, media_type: &str, font_data: &[u8]) -> Result<Vec
     let service_logo = image::load_from_memory(&logo)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .to_rgba8();
-    let logo_scale =
-        (320.0 / service_logo.width() as f32).min(220.0 / service_logo.height() as f32);
+    let (max_logo_width, max_logo_height) = if service == "peacock" {
+        (170.0, 170.0)
+    } else {
+        (320.0, 220.0)
+    };
+    let logo_scale = (max_logo_width / service_logo.width() as f32)
+        .min(max_logo_height / service_logo.height() as f32);
     let logo_width = (service_logo.width() as f32 * logo_scale).round() as u32;
     let logo_height = (service_logo.height() as f32 * logo_scale).round() as u32;
     let service_logo = image::imageops::resize(
@@ -163,6 +182,11 @@ fn render_cover(service: &str, media_type: &str, font_data: &[u8]) -> Result<Vec
         image::imageops::FilterType::Lanczos3,
     );
     let logo_x = (image.width() - logo_width) / 2;
+    if service == "peacock" {
+        let center = (image.width() as i32 / 2, 76 + logo_height as i32 / 2);
+        let radius = (logo_width.max(logo_height) as i32 / 2 + 42).max(112);
+        draw_filled_circle_mut(&mut image, center, radius, Rgba([255, 255, 255, 255]));
+    }
     image::imageops::overlay(&mut image, &service_logo, logo_x as i64, 76);
     let mut font = FontRef::try_from_slice(font_data).expect("loaded cover font is valid");
     font.set_variation(b"wght", 800.0);
