@@ -34,7 +34,7 @@ pub(super) async fn get_logo(
     let details = match state
         .http
         .get(details_url)
-        .bearer_auth(&*state.tmdb_api_key)
+        .bearer_auth(&*state.tmdb_access_token)
         .send()
         .await
     {
@@ -153,7 +153,7 @@ pub(super) async fn get_backdrop(
     let details = match state
         .http
         .get(details_url)
-        .bearer_auth(&*state.tmdb_api_key)
+        .bearer_auth(&*state.tmdb_access_token)
         .send()
         .await
     {

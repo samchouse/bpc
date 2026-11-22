@@ -22,7 +22,7 @@ use cache::DiskCache;
 #[derive(Clone)]
 struct AppState {
     http: reqwest::Client,
-    tmdb_api_key: Arc<str>,
+    tmdb_access_token: Arc<str>,
     font: Arc<[u8]>,
     cover_font: Arc<[u8]>,
     ocr: Arc<Mutex<RustO>>,
@@ -42,7 +42,7 @@ fn cached_response(bytes: impl Into<Body>, content_type: &str) -> Response {
 }
 
 pub fn app() -> Router {
-    let tmdb_api_key = env::var("TMDB_API_KEY").expect("TMDB_API_KEY must be set");
+    let tmdb_access_token = env::var("TMDB_ACCESS_TOKEN").expect("TMDB_ACCESS_TOKEN must be set");
     let font = fs::read("assets/Teko-wght.ttf")
         .or_else(|_| fs::read("assets/DejaVuSans-Bold.ttf"))
         .expect("Teko font or fallback font must be available");
@@ -52,7 +52,7 @@ pub fn app() -> Router {
     let ocr = initialize_ocr().expect("Could not initialize English OCR engine");
     let state = AppState {
         http: reqwest::Client::new(),
-        tmdb_api_key: tmdb_api_key.into(),
+        tmdb_access_token: tmdb_access_token.into(),
         font: font.into(),
         cover_font: cover_font.into(),
         ocr: Arc::new(Mutex::new(ocr)),

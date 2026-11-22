@@ -79,7 +79,7 @@ pub(super) async fn get_poster(
     let response = state
         .http
         .get(format!("https://api.themoviedb.org/3/{tmdb_type}/{id}"))
-        .bearer_auth(&*state.tmdb_api_key)
+        .bearer_auth(&*state.tmdb_access_token)
         .send()
         .await;
     let details = match response {

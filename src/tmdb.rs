@@ -74,7 +74,7 @@ pub(crate) async fn fetch_tmdb_images(
         .http
         .get(url)
         .query(&[("include_image_language", include_languages.as_str())])
-        .bearer_auth(&*state.tmdb_api_key)
+        .bearer_auth(&*state.tmdb_access_token)
         .send()
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
