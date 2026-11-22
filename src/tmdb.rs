@@ -62,6 +62,33 @@ pub(crate) fn preferred_language_images(
     })
 }
 
+pub(crate) fn preferred_language_posters(
+    images: Vec<TmdbPoster>,
+    original_language: &str,
+) -> Vec<TmdbPoster> {
+    let preferred_language = if original_language == "fr" {
+        "fr"
+    } else {
+        "en"
+    };
+    let preferred: Vec<_> = images
+        .iter()
+        .filter(|image| image.iso_639_1.as_deref() == Some(preferred_language))
+        .cloned()
+        .collect();
+    if !preferred.is_empty() {
+        return preferred;
+    }
+
+    images
+        .into_iter()
+        .filter(|image| {
+            image.iso_639_1.is_none()
+                || image.iso_639_1.as_deref() == Some(original_language)
+        })
+        .collect()
+}
+
 pub(crate) async fn fetch_tmdb_images(
     state: &AppState,
     tmdb_type: &str,

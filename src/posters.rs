@@ -1,5 +1,7 @@
 use super::*;
-use crate::tmdb::{TmdbDetails, TmdbPoster, fetch_tmdb_images, preferred_language_images};
+use crate::tmdb::{
+    TmdbDetails, TmdbPoster, fetch_tmdb_images, preferred_language_posters,
+};
 use ab_glyph::{FontRef, PxScale, VariableFont};
 use axum::{
     body::Body,
@@ -103,7 +105,7 @@ pub(super) async fn get_poster(
         }
         Err(_) => return error_response(StatusCode::BAD_GATEWAY, "TMDB images request failed"),
     };
-    let posters = preferred_language_images(images.posters, &details.original_language);
+    let posters = preferred_language_posters(images.posters, &details.original_language);
     let tmdb_ms = tmdb_started.elapsed().as_millis();
     let has_well_voted_poster = posters.iter().any(|poster| poster.vote_count > 10);
     let posters: Vec<_> = if has_well_voted_poster {
@@ -155,9 +157,8 @@ pub(super) async fn get_poster(
             .then_with(|| a.width.cmp(&b.width))
     });
     ranked_posters.reverse();
-    // Fetch the first two candidates concurrently, then fetch the third only
-    // if OCR rejects both of them.
-    let top_candidates: Vec<_> = ranked_posters.into_iter().take(3).collect();
+    // Keep the full preference order so OCR can search every candidate.
+    let top_candidates = ranked_posters;
     // Stale entries retain their previous image path. If TMDB still returns
     // that path among the current top candidates, renew its 24-hour lease and
     // serve the stored bytes without downloading or re-running OCR.
@@ -224,9 +225,9 @@ pub(super) async fn get_poster(
     let mut fetch_ms = 0_u128;
 
     // Run OCR in rank order and reject posters where OCR finds no readable text.
-    // Fetch the third candidate only if both of the first two are rejected.
     let mut selected_poster = None;
     let mut selected_path = None;
+    let mut fallback_poster = None;
     let mut checked_candidates = 0;
     let mut ocr_ms = 0_u128;
     for index in 0..top_candidates.len() {
@@ -243,10 +244,10 @@ pub(super) async fn get_poster(
                 candidate_images[downloaded_index] = Some((bytes, content_type));
             }
         }
-        if index == 2 {
+        if index >= initial_download_count {
             let candidate = &top_candidates[index];
             let image_url = format!("https://image.tmdb.org/t/p/w780{}", candidate.file_path);
-            let third_fetch_started = Instant::now();
+            let fetch_started = Instant::now();
             if let Ok(response) = state.http.get(image_url).send().await {
                 if response.status().is_success() {
                     let content_type = response
@@ -259,7 +260,7 @@ pub(super) async fn get_poster(
                     }
                 }
             }
-            fetch_ms += third_fetch_started.elapsed().as_millis();
+            fetch_ms += fetch_started.elapsed().as_millis();
         }
         let Some((bytes, content_type)) = candidate_images[index].take() else {
             continue;
@@ -268,6 +269,13 @@ pub(super) async fn get_poster(
             Ok(image) => image,
             Err(_) => continue,
         };
+        if fallback_poster.is_none() {
+            fallback_poster = Some((
+                bytes.clone(),
+                content_type.clone(),
+                top_candidates[index].file_path.clone(),
+            ));
+        }
         let rgb = image.to_rgb8();
         let width = rgb.width();
         let height = rgb.height();
@@ -311,6 +319,12 @@ pub(super) async fn get_poster(
     }
     let candidate_ms = candidate_started.elapsed().as_millis();
     let mut render_ms = 0;
+    let selected_poster = selected_poster.or_else(|| {
+        fallback_poster.map(|(bytes, content_type, path)| {
+            selected_path = Some(path);
+            (bytes, content_type)
+        })
+    });
     let Some((bytes, content_type)) = selected_poster else {
         log_poster_timings(
             &media_type,
@@ -323,7 +337,7 @@ pub(super) async fn get_poster(
             render_ms,
             request_started.elapsed().as_millis(),
         );
-        return error_response(StatusCode::NOT_FOUND, "Suitable poster not found");
+        return error_response(StatusCode::NOT_FOUND, "Poster not found");
     };
     let selected_path = selected_path.expect("selected poster has a TMDB path");
     let content_type_text = content_type
