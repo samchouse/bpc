@@ -19,7 +19,7 @@ pub(super) async fn get_cover(
         return error_response(StatusCode::NOT_FOUND, "Unknown cover type");
     }
     let service = service.to_ascii_lowercase();
-    let cache_key = format!("cover:v11:{service}:{media_type}");
+    let cache_key = format!("cover:v1:{service}:{media_type}");
     let request_lock = state.cache.request_lock(&cache_key).await;
     let _request_guard = request_lock.lock_owned().await;
     if let Some((entry, bytes, fresh)) = state.cache.read(&cache_key).await {
@@ -31,7 +31,7 @@ pub(super) async fn get_cover(
         Ok(bytes) => {
             state
                 .cache
-                .write(&cache_key, "generated:v11", "image/png", &bytes)
+                .write(&cache_key, "generated:v1", "image/png", &bytes)
                 .await;
             cover_response(bytes, "image/png")
         }
